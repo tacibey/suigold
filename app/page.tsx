@@ -1,6 +1,5 @@
 "use client";
 
-// DEĞİŞİKLİK 1: Suiet kütüphanesini kullanıyoruz
 import { ConnectButton, useWallet } from "@suiet/wallet-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useState, useEffect } from "react";
@@ -17,7 +16,6 @@ const TOKENS = [
 ];
 
 export default function Home() {
-  // DEĞİŞİKLİK 2: useWallet hook'u
   const wallet = useWallet();
   const { connected, account, signAndExecuteTransaction } = wallet;
   
@@ -34,7 +32,6 @@ export default function Home() {
   const [selectedToken, setSelectedToken] = useState(TOKENS[0]);
   const [isTokenListOpen, setIsTokenListOpen] = useState(false);
 
-  // 7 Saniye Kuralı
   useEffect(() => {
     const interval = setInterval(() => {
       setOreAmount(prev => prev + 0.00035); 
@@ -42,7 +39,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Ortak Başarı Fonksiyonu
   const handleSuccessScenario = (type: 'smelt' | 'deposit' | 'withdraw', amount: number = 0) => {
     setLoading(false);
     setShowSuccess(true);
@@ -65,7 +61,6 @@ export default function Home() {
     setTimeout(() => setShowSuccess(false), 3000);
   };
 
-  // --- SMELT İŞLEMİ ---
   const handleSmelt = async () => {
     if (!connected) return;
     setLoading(true);
@@ -75,22 +70,15 @@ export default function Home() {
       const [coin] = tx.splitCoins(tx.gas, [1]);
       tx.transferObjects([coin], account!.address);
 
-      // DEĞİŞİKLİK 3: Suiet imza yapısı
-      await signAndExecuteTransaction({
-        transaction: tx,
-      });
-      
-      // Hata almazsa başarılı say
+      await signAndExecuteTransaction({ transaction: tx });
       handleSuccessScenario('smelt');
 
     } catch (e) {
       console.warn("Tx Failed (Expected in Demo):", e);
-      // Demo Modu: Hata olsa bile başarılı say
       setTimeout(() => handleSuccessScenario('smelt'), 1000);
     }
   };
 
-  // --- DEPOSIT / WITHDRAW İŞLEMİ ---
   const handleTransaction = async () => {
     if (!inputAmount || !connected) return;
     setLoading(true);
@@ -101,10 +89,7 @@ export default function Home() {
       const [coin] = tx.splitCoins(tx.gas, [1]);
       tx.transferObjects([coin], account!.address);
 
-      await signAndExecuteTransaction({
-        transaction: tx,
-      });
-
+      await signAndExecuteTransaction({ transaction: tx });
       handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount);
 
     } catch (e) {
@@ -116,17 +101,23 @@ export default function Home() {
   return (
     <main className="h-[100dvh] w-full flex flex-col relative overflow-hidden font-sans bg-[#050505] text-white">
       
-      {/* HEADER */}
-      <header className="h-16 flex-none w-full z-50 border-b border-white/5 bg-[#050505]/90 backdrop-blur-md flex items-center justify-between px-4 lg:px-8">
-        <div className="flex items-center gap-2 min-w-0">
+      {/* --- GÜNCELLENMİŞ HEADER --- */}
+      <header className="h-16 flex-none w-full z-50 border-b border-white/5 bg-[#050505]/95 backdrop-blur-md flex items-center justify-between px-4">
+        
+        {/* SOL: LOGO (Mobilde de görünecek şekilde ayarlandı) */}
+        <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-br from-[#F4CF57] to-[#B48F17] rounded-lg flex items-center justify-center font-bold text-black shadow-[0_0_10px_rgba(212,175,55,0.3)] text-sm flex-shrink-0">
             Au
           </div>
-          <span className="font-bold text-lg tracking-tight font-mono truncate hidden sm:block">SuiGold</span>
+          {/* Mobilde text-base, Masaüstünde text-xl */}
+          <span className="font-bold text-base md:text-xl tracking-tight font-mono text-white">
+            SuiGold
+          </span>
         </div>
-        <div className="flex-shrink-0 ml-4">
-          {/* Suiet Connect Button */}
-          <ConnectButton className="!bg-[#D4AF37] !text-black !font-bold !rounded-xl !h-10 !px-4 hover:!scale-105 transition-transform" />
+
+        {/* SAĞ: CONNECT BUTTON (CSS ile küçültüldü) */}
+        <div className="flex-shrink-0">
+          <ConnectButton label="Connect" /> 
         </div>
       </header>
 
@@ -142,7 +133,7 @@ export default function Home() {
                   <div className="absolute inset-0 bg-[#D4AF37]/20 blur-xl group-hover:bg-[#D4AF37]/40 transition-all" />
                   <Flame className="text-[#D4AF37] relative z-10 w-12 h-12" />
                 </div>
-                <h1 className="text-5xl font-black mb-4 tracking-tighter leading-[0.9]">
+                <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tighter leading-[0.9]">
                   <span className="text-white">Turn Dollar</span><br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F4CF57] to-[#D4AF37]">Into Gold.</span>
                 </h1>
@@ -152,8 +143,7 @@ export default function Home() {
                 </p>
                 <div className="flex justify-center">
                   <div className="scale-110 origin-top">
-                    {/* Büyük Buton */}
-                    <ConnectButton className="!bg-[#D4AF37] !text-black !font-bold !rounded-xl !py-3 !px-8 !text-lg" />
+                    <ConnectButton />
                   </div>
                 </div>
               </motion.div>
@@ -165,7 +155,7 @@ export default function Home() {
                     <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-4 left-0 right-0 flex justify-center z-[100] pointer-events-none">
                       <div className="bg-[#0A0A0A] px-6 py-3 rounded-full border border-[#D4AF37] flex items-center gap-3 shadow-[0_0_30px_rgba(212,175,55,0.4)]">
                         <CheckCircle2 size={20} className="text-[#D4AF37]" />
-                        <span className="font-bold text-sm">Transaction Sponsored & Successful!</span>
+                        <span className="font-bold text-sm">Transaction Successful!</span>
                       </div>
                     </motion.div>
                   )}
