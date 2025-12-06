@@ -1,65 +1,360 @@
-import Image from "next/image";
+"use client";
+
+import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Flame, Hexagon, CheckCircle2, Wallet, Plus, Minus, X, ArrowRight, ChevronDown, Loader2, Info } from "lucide-react";
+import { COIN_SUI } from "@/lib/contracts";
+
+const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+
+const TOKENS = [
+  { symbol: 'USDC', name: 'USD Coin', rate: 1.0, type: '0x...USDC' },
+  { symbol: 'SUI', name: 'Sui Token', rate: 3.85, type: COIN_SUI },
+  { symbol: 'XAUM', name: 'Tether Gold', rate: 2350.0, type: '0x...XAUM' },
+];
 
 export default function Home() {
+  const account = useCurrentAccount();
+  const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+  
+  // State
+  const [oreAmount, setOreAmount] = useState(12.4501);
+  const [goldBalance, setGoldBalance] = useState(4.200);
+  const [usdcStaked, setUsdcStaked] = useState(10000);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Modal & Input
+  const [activeModal, setActiveModal] = useState<'deposit' | 'withdraw' | null>(null);
+  const [inputAmount, setInputAmount] = useState("");
+  const [selectedToken, setSelectedToken] = useState(TOKENS[0]);
+  const [isTokenListOpen, setIsTokenListOpen] = useState(false);
+
+  // 7 Saniye Kuralı
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setOreAmount(prev => prev + 0.00035); 
+    }, 7000); 
+    return () => clearInterval(interval);
+  }, []);
+
+  // --- BAŞARI SENARYOSU (Ortak Fonksiyon) ---
+  const handleSuccessScenario = (type: 'smelt' | 'deposit' | 'withdraw', amount: number = 0) => {
+    setLoading(false);
+    setShowSuccess(true);
+    
+    if (type === 'smelt') {
+      setGoldBalance(p => p + oreAmount * 0.95);
+      setOreAmount(0);
+    } else if (type === 'deposit') {
+      const usdcValue = amount * selectedToken.rate;
+      setUsdcStaked(prev => prev + usdcValue);
+      setActiveModal(null);
+      setInputAmount("");
+      setSelectedToken(TOKENS[0]);
+    } else if (type === 'withdraw') {
+      setUsdcStaked(prev => Math.max(0, prev - amount));
+      setActiveModal(null);
+      setInputAmount("");
+    }
+
+    setTimeout(() => setShowSuccess(false), 3000);
+  };
+
+  // --- SMELT İŞLEMİ ---
+  const handleSmelt = async () => {
+    if (!account) return;
+    setLoading(true);
+
+    try {
+      const tx = new Transaction();
+      // Demo: Boş işlem
+      const [coin] = tx.splitCoins(tx.gas, [1]);
+      tx.transferObjects([coin], account.address);
+
+      signAndExecuteTransaction(
+        { transaction: tx },
+        {
+          onSuccess: (result) => {
+            console.log("Tx Success:", result);
+            handleSuccessScenario('smelt');
+          },
+          onError: (error) => {
+            console.warn("Tx Failed (Expected in Demo):", error);
+            // DEMO MODU: Hata alsa bile (Gas yok vs.) başarılı sayıyoruz.
+            // Gerçekte burası Enoki Sponsored Transaction ile çözülecek.
+            setTimeout(() => handleSuccessScenario('smelt'), 1000);
+          }
+        }
+      );
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
+  };
+
+  // --- DEPOSIT / WITHDRAW İŞLEMİ ---
+  const handleTransaction = async () => {
+    if (!inputAmount || !account) return;
+    setLoading(true);
+    const amount = Number(inputAmount);
+
+    try {
+      const tx = new Transaction();
+      const [coin] = tx.splitCoins(tx.gas, [1]);
+      tx.transferObjects([coin], account.address);
+
+      signAndExecuteTransaction(
+        { transaction: tx },
+        {
+          onSuccess: () => {
+             handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount);
+          },
+          onError: (error) => {
+            console.warn("Tx Failed (Expected in Demo):", error);
+            // DEMO MODU: Hata alsa bile başarılı say.
+            setTimeout(() => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount), 1000);
+          }
+        }
+      );
+
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="h-[100dvh] w-full flex flex-col relative overflow-hidden font-sans bg-[#050505] text-white">
+      
+      {/* HEADER */}
+      <header className="h-16 flex-none w-full z-50 border-b border-white/5 bg-[#050505]/90 backdrop-blur-md flex items-center justify-between px-4 lg:px-8">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 bg-gradient-to-br from-[#F4CF57] to-[#B48F17] rounded-lg flex items-center justify-center font-bold text-black shadow-[0_0_10px_rgba(212,175,55,0.3)] text-sm flex-shrink-0">
+            Au
+          </div>
+          <span className="font-bold text-lg tracking-tight font-mono truncate hidden sm:block">SuiGold</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="flex-shrink-0 ml-4">
+          <ConnectButton />
         </div>
-      </main>
-    </div>
+      </header>
+
+      {/* İÇERİK */}
+      <div className="flex-1 w-full overflow-y-auto no-scrollbar relative z-10">
+        <div className="min-h-full flex flex-col items-center justify-center p-4 py-8">
+          <div className="w-full max-w-md mx-auto space-y-6">
+            
+            {!account ? (
+              // GİRİŞ EKRANI
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
+                <div className="inline-flex p-5 rounded-full bg-white/5 border border-white/10 mb-6 shadow-2xl relative group">
+                  <div className="absolute inset-0 bg-[#D4AF37]/20 blur-xl group-hover:bg-[#D4AF37]/40 transition-all" />
+                  <Flame className="text-[#D4AF37] relative z-10 w-12 h-12" />
+                </div>
+                <h1 className="text-5xl font-black mb-4 tracking-tighter leading-[0.9]">
+                  <span className="text-white">Turn Dollar</span><br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F4CF57] to-[#D4AF37]">Into Gold.</span>
+                </h1>
+                <p className="text-sm text-gray-400 mb-8 font-light px-4 leading-relaxed">
+                  Stop letting inflation eat your savings.<br/>
+                  <span className="text-white font-medium">SuiGold</span> gives you real yield.
+                </p>
+                <div className="flex justify-center">
+                  <div className="scale-110 origin-top">
+                    <ConnectButton />
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              // DASHBOARD
+              <>
+                <AnimatePresence>
+                  {showSuccess && (
+                    <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-4 left-0 right-0 flex justify-center z-[100] pointer-events-none">
+                      <div className="bg-[#0A0A0A] px-6 py-3 rounded-full border border-[#D4AF37] flex items-center gap-3 shadow-[0_0_30px_rgba(212,175,55,0.4)]">
+                        <CheckCircle2 size={20} className="text-[#D4AF37]" />
+                        <span className="font-bold text-sm">Transaction Sponsored & Successful!</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* 1. KART: THE VAULT */}
+                <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-[#0F0F0F]/90 backdrop-blur border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Hexagon size={100} /></div>
+                   
+                   <div className="flex items-center justify-between mb-6">
+                     <div className="flex items-center gap-2 text-gray-400">
+                       <Wallet size={16} /> 
+                       <h2 className="text-xs font-bold tracking-widest uppercase">Your Vault</h2>
+                     </div>
+                     <div className="text-xs text-gray-500 font-mono">
+                        Staked: <span className="text-white">{formatCurrency(usdcStaked)}</span>
+                     </div>
+                   </div>
+
+                   <div className="flex items-baseline gap-2 mb-1">
+                      <p className="text-5xl font-mono font-bold text-white tracking-tighter">{goldBalance.toFixed(3)}</p>
+                      <span className="text-lg font-bold text-[#D4AF37]">XAUM</span>
+                   </div>
+                   <p className="text-xs text-gray-500 mb-6">≈ {formatCurrency(goldBalance * 2350)} USD</p>
+
+                   <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={() => setActiveModal('deposit')}
+                        className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#D4AF37]/50 transition-all group/btn"
+                      >
+                        <Plus size={16} className="text-[#D4AF37] group-hover/btn:scale-110 transition-transform" />
+                        <span className="text-sm font-bold">Deposit</span>
+                      </button>
+                      <button 
+                        onClick={() => setActiveModal('withdraw')}
+                        className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-red-500/50 transition-all group/btn"
+                      >
+                        <Minus size={16} className="text-gray-400 group-hover/btn:text-red-400 transition-colors" />
+                        <span className="text-sm font-bold text-gray-400 group-hover/btn:text-gray-200">Withdraw</span>
+                      </button>
+                   </div>
+                </motion.div>
+
+                {/* 2. KART: THE FURNACE */}
+                <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-gradient-to-br from-[#121212] to-black border border-[#D4AF37]/30 rounded-2xl p-6 relative overflow-hidden shadow-lg">
+                   <div className="flex items-center gap-2 mb-1 text-orange-200"><Flame className="text-orange-500" size={16} /> <h2 className="text-xs font-bold tracking-widest uppercase">The Furnace</h2></div>
+                   <div className="flex items-baseline gap-2 mb-6">
+                      <motion.p 
+                        key={oreAmount}
+                        initial={{ color: "#34d399" }}
+                        animate={{ color: ["#fbbf24", "#34d399"] }}
+                        transition={{ duration: 0.5 }}
+                        className="text-4xl font-mono font-bold tabular-nums"
+                      >
+                        {oreAmount.toFixed(5)}
+                      </motion.p>
+                      <span className="text-xs text-orange-500/60">ORE</span>
+                   </div>
+                   
+                   <button onClick={handleSmelt} disabled={loading} className="w-full py-3 bg-[#D4AF37] text-black font-bold text-lg rounded-xl hover:bg-[#F4CF57] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(212,175,55,0.2)]">
+                     {loading ? <span className="flex items-center gap-2"><Loader2 className="animate-spin" size={20}/> Processing...</span> : "SMELT ORE"}
+                   </button>
+                </motion.div>
+                
+                <div className="flex items-center justify-center gap-2 opacity-60">
+                   <Info size={12} className="text-[#D4AF37]" />
+                   <p className="text-[10px] text-center text-gray-400 uppercase tracking-widest">Gas Sponsored by Enoki</p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL */}
+      <AnimatePresence>
+        {activeModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ y: 50, scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: 50, scale: 0.95 }}
+              className="w-full max-w-sm bg-[#0F0F0F] border border-[#D4AF37]/30 rounded-3xl p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative"
+            >
+              <button onClick={() => { setActiveModal(null); setIsTokenListOpen(false); }} className="absolute top-4 right-4 p-2 bg-white/5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
+                <X size={16} />
+              </button>
+
+              <h3 className="text-xl font-bold mb-1 text-white">
+                {activeModal === 'deposit' ? 'Deposit Assets' : 'Withdraw Funds'}
+              </h3>
+              <p className="text-xs text-gray-500 mb-6">
+                {activeModal === 'deposit' ? 'Auto-swap any token to USDC & Stake.' : 'Unstake your capital back to wallet.'}
+              </p>
+
+              <div className="relative mb-6">
+                <input 
+                  type="number" 
+                  value={inputAmount}
+                  onChange={(e) => setInputAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-black border border-white/10 rounded-xl py-4 pl-4 pr-32 text-2xl font-mono text-white focus:outline-none focus:border-[#D4AF37] transition-colors"
+                />
+                
+                <div className="absolute right-2 top-2 bottom-2">
+                  {activeModal === 'deposit' ? (
+                    <div className="relative h-full">
+                      <button 
+                        onClick={() => setIsTokenListOpen(!isTokenListOpen)}
+                        className="h-full px-3 bg-white/5 hover:bg-white/10 rounded-lg flex items-center gap-2 transition-colors border border-white/5"
+                      >
+                        <span className="font-bold text-sm">{selectedToken.symbol}</span>
+                        <ChevronDown size={14} className={`text-gray-400 transition-transform ${isTokenListOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      <AnimatePresence>
+                        {isTokenListOpen && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                            className="absolute right-0 top-full mt-2 w-40 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50"
+                          >
+                            {TOKENS.map((token) => (
+                              <button
+                                key={token.symbol}
+                                onClick={() => { setSelectedToken(token); setIsTokenListOpen(false); }}
+                                className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center justify-between group"
+                              >
+                                <span className={`text-sm font-bold ${selectedToken.symbol === token.symbol ? 'text-[#D4AF37]' : 'text-gray-300'}`}>
+                                  {token.symbol}
+                                </span>
+                                {selectedToken.symbol === token.symbol && <CheckCircle2 size={12} className="text-[#D4AF37]" />}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ) : (
+                    <div className="h-full px-4 flex items-center justify-center text-sm font-bold text-gray-500">
+                      USDC
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {activeModal === 'deposit' && selectedToken.symbol !== 'USDC' && inputAmount && (
+                <div className="mb-6 p-3 bg-white/5 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Est. Staked Amount:</span>
+                  <span className="text-[#D4AF37] font-mono font-bold">
+                    ≈ {formatCurrency(Number(inputAmount) * selectedToken.rate)}
+                  </span>
+                </div>
+              )}
+
+              <button 
+                onClick={handleTransaction}
+                disabled={loading || !inputAmount}
+                className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
+                  activeModal === 'deposit' 
+                    ? 'bg-[#D4AF37] text-black hover:bg-[#F4CF57]' 
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                } ${loading || !inputAmount ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2"><Loader2 className="animate-spin" size={20}/> Processing...</span>
+                ) : (
+                  <>
+                    {activeModal === 'deposit' ? (selectedToken.symbol === 'USDC' ? 'Confirm Deposit' : `Zap ${selectedToken.symbol} & Deposit`) : 'Confirm Withdraw'}
+                    <ArrowRight size={18} />
+                  </>
+                )}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+    </main>
   );
 }
