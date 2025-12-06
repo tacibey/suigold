@@ -54,3 +54,15 @@ button[data-testid="connect-wallet-button"] {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Suiet Wallet Kit Override */
+.wkit-button {
+  background-color: #D4AF37 !important;
+  color: #000 !important;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+}
+.wkit-button:hover {
+  background-color: #F4CF57 !important;
+  transform: scale(1.05);
+}

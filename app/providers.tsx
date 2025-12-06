@@ -1,25 +1,18 @@
 "use client";
 
-import { createNetworkConfig, SuiClientProvider, WalletProvider } from "@mysten/dapp-kit";
-import { getFullnodeUrl } from "@mysten/sui.js/client";
+import { WalletProvider } from "@suiet/wallet-kit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import "@mysten/dapp-kit/dist/index.css";
-
-const { networkConfig } = createNetworkConfig({
-  mainnet: { url: getFullnodeUrl("mainnet") },
-});
+import "@suiet/wallet-kit/style.css"; // Suiet'in stilleri
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networkConfig} defaultNetwork="mainnet">
-        <WalletProvider autoConnect>
-          {children}
-        </WalletProvider>
-      </SuiClientProvider>
+      <WalletProvider>
+        {children}
+      </WalletProvider>
     </QueryClientProvider>
   );
 }

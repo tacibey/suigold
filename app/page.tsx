@@ -1,6 +1,7 @@
 "use client";
 
-import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+// DEĞİŞİKLİK 1: Suiet kütüphanesini kullanıyoruz
+import { ConnectButton, useWallet } from "@suiet/wallet-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,8 +17,9 @@ const TOKENS = [
 ];
 
 export default function Home() {
-  const account = useCurrentAccount();
-  const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+  // DEĞİŞİKLİK 2: useWallet hook'u
+  const wallet = useWallet();
+  const { connected, account, signAndExecuteTransaction } = wallet;
   
   // State
   const [oreAmount, setOreAmount] = useState(12.4501);
@@ -40,7 +42,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // --- BAŞARI SENARYOSU (Ortak Fonksiyon) ---
+  // Ortak Başarı Fonksiyonu
   const handleSuccessScenario = (type: 'smelt' | 'deposit' | 'withdraw', amount: number = 0) => {
     setLoading(false);
     setShowSuccess(true);
@@ -65,64 +67,49 @@ export default function Home() {
 
   // --- SMELT İŞLEMİ ---
   const handleSmelt = async () => {
-    if (!account) return;
+    if (!connected) return;
     setLoading(true);
 
     try {
       const tx = new Transaction();
-      // Demo: Boş işlem
       const [coin] = tx.splitCoins(tx.gas, [1]);
-      tx.transferObjects([coin], account.address);
+      tx.transferObjects([coin], account!.address);
 
-      signAndExecuteTransaction(
-        { transaction: tx },
-        {
-          onSuccess: (result) => {
-            console.log("Tx Success:", result);
-            handleSuccessScenario('smelt');
-          },
-          onError: (error) => {
-            console.warn("Tx Failed (Expected in Demo):", error);
-            // DEMO MODU: Hata alsa bile (Gas yok vs.) başarılı sayıyoruz.
-            // Gerçekte burası Enoki Sponsored Transaction ile çözülecek.
-            setTimeout(() => handleSuccessScenario('smelt'), 1000);
-          }
-        }
-      );
+      // DEĞİŞİKLİK 3: Suiet imza yapısı
+      await signAndExecuteTransaction({
+        transaction: tx,
+      });
+      
+      // Hata almazsa başarılı say
+      handleSuccessScenario('smelt');
+
     } catch (e) {
-      console.error(e);
-      setLoading(false);
+      console.warn("Tx Failed (Expected in Demo):", e);
+      // Demo Modu: Hata olsa bile başarılı say
+      setTimeout(() => handleSuccessScenario('smelt'), 1000);
     }
   };
 
   // --- DEPOSIT / WITHDRAW İŞLEMİ ---
   const handleTransaction = async () => {
-    if (!inputAmount || !account) return;
+    if (!inputAmount || !connected) return;
     setLoading(true);
     const amount = Number(inputAmount);
 
     try {
       const tx = new Transaction();
       const [coin] = tx.splitCoins(tx.gas, [1]);
-      tx.transferObjects([coin], account.address);
+      tx.transferObjects([coin], account!.address);
 
-      signAndExecuteTransaction(
-        { transaction: tx },
-        {
-          onSuccess: () => {
-             handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount);
-          },
-          onError: (error) => {
-            console.warn("Tx Failed (Expected in Demo):", error);
-            // DEMO MODU: Hata alsa bile başarılı say.
-            setTimeout(() => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount), 1000);
-          }
-        }
-      );
+      await signAndExecuteTransaction({
+        transaction: tx,
+      });
+
+      handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount);
 
     } catch (e) {
-      console.error(e);
-      setLoading(false);
+      console.warn("Tx Failed (Expected in Demo):", e);
+      setTimeout(() => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount), 1000);
     }
   };
 
@@ -138,7 +125,8 @@ export default function Home() {
           <span className="font-bold text-lg tracking-tight font-mono truncate hidden sm:block">SuiGold</span>
         </div>
         <div className="flex-shrink-0 ml-4">
-          <ConnectButton />
+          {/* Suiet Connect Button */}
+          <ConnectButton className="!bg-[#D4AF37] !text-black !font-bold !rounded-xl !h-10 !px-4 hover:!scale-105 transition-transform" />
         </div>
       </header>
 
@@ -147,7 +135,7 @@ export default function Home() {
         <div className="min-h-full flex flex-col items-center justify-center p-4 py-8">
           <div className="w-full max-w-md mx-auto space-y-6">
             
-            {!account ? (
+            {!connected ? (
               // GİRİŞ EKRANI
               <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
                 <div className="inline-flex p-5 rounded-full bg-white/5 border border-white/10 mb-6 shadow-2xl relative group">
@@ -164,7 +152,8 @@ export default function Home() {
                 </p>
                 <div className="flex justify-center">
                   <div className="scale-110 origin-top">
-                    <ConnectButton />
+                    {/* Büyük Buton */}
+                    <ConnectButton className="!bg-[#D4AF37] !text-black !font-bold !rounded-xl !py-3 !px-8 !text-lg" />
                   </div>
                 </div>
               </motion.div>
@@ -342,7 +331,7 @@ export default function Home() {
                 } ${loading || !inputAmount ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {loading ? (
-                  <span className="flex items-center gap-2"><Loader2 className="animate-spin" size={20}/> Processing...</span>
+                  <span className="flex items-center gap-2"><Loader2 className="animate-spin" size={20}/> Check Wallet...</span>
                 ) : (
                   <>
                     {activeModal === 'deposit' ? (selectedToken.symbol === 'USDC' ? 'Confirm Deposit' : `Zap ${selectedToken.symbol} & Deposit`) : 'Confirm Withdraw'}
