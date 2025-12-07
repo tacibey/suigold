@@ -1,6 +1,7 @@
 "use client";
 
-import { ConnectButton, useWallet } from "@suiet/wallet-kit";
+// DEĞİŞİKLİK: Resmi Kit Importları
+import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,18 +18,18 @@ const TOKENS = [
 ];
 
 export default function Home() {
-  // --- HYDRATION FIX BAŞLANGICI ---
-  // Bu bölüm Dark Reader gibi eklentilerin yarattığı uyumsuzluk hatalarını engeller.
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
-  // --- HYDRATION FIX BİTİŞİ ---
 
-  const wallet = useWallet();
-  const { connected, account, signAndExecuteTransaction } = wallet;
+  // DEĞİŞİKLİK: Yeni Hooklar
+  const account = useCurrentAccount(); // Bağlı hesap var mı?
+  const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction(); // İşlem yapma fonksiyonu
   
+  const connected = !!account; // Account varsa bağlıdır
+
   // State
   const [oreAmount, setOreAmount] = useState(12.4501);
   const [goldBalance, setGoldBalance] = useState(4.200);
@@ -80,12 +81,22 @@ export default function Home() {
       const [coin] = tx.splitCoins(tx.gas, [1]);
       tx.transferObjects([coin], account.address);
 
-      await signAndExecuteTransaction({ transaction: tx });
-      handleSuccessScenario('smelt');
+      // DEĞİŞİKLİK: Yeni işlem yapısı
+      signAndExecuteTransaction(
+        { transaction: tx },
+        {
+          onSuccess: () => handleSuccessScenario('smelt'),
+          onError: (err) => {
+            console.warn("Tx Failed:", err);
+            // Demo olduğu için başarılı sayıyoruz
+            setTimeout(() => handleSuccessScenario('smelt'), 1000);
+          }
+        }
+      );
 
     } catch (e) {
-      console.warn("Tx Failed (Expected in Demo):", e);
-      setTimeout(() => handleSuccessScenario('smelt'), 1000);
+      console.warn("Error:", e);
+      setLoading(false);
     }
   };
 
@@ -95,30 +106,29 @@ export default function Home() {
     const amount = Number(inputAmount);
 
     try {
-      if (activeModal === 'deposit') {
-        console.log("Zap İşlemi Başlatılıyor...");
-        const tx = new Transaction();
-        const [coin] = tx.splitCoins(tx.gas, [1]);
-        tx.transferObjects([coin], account.address);
-        await signAndExecuteTransaction({ transaction: tx });
-      } 
-      else {
-        const tx = new Transaction();
-        const [coin] = tx.splitCoins(tx.gas, [1]);
-        tx.transferObjects([coin], account.address);
-        await signAndExecuteTransaction({ transaction: tx });
-      }
-      handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount);
+      const tx = new Transaction();
+      const [coin] = tx.splitCoins(tx.gas, [1]);
+      tx.transferObjects([coin], account.address);
+
+      signAndExecuteTransaction(
+        { transaction: tx },
+        {
+          onSuccess: () => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount),
+          onError: (err) => {
+            console.warn("Tx Failed:", err);
+            setTimeout(() => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount), 1000);
+          }
+        }
+      );
+
     } catch (e) {
-      console.warn("İşlem Başarısız:", e);
-      setTimeout(() => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount), 1000);
+      console.warn("Error:", e);
+      setLoading(false);
     }
   };
 
-  // --- HYDRATION CHECK ---
-  // Sayfa tamamen yüklenmeden render yapma (Hataları önler)
   if (!isMounted) {
-    return <div className="h-[100dvh] w-full bg-[#050505]" />; // Boş siyah ekran
+    return <div className="h-[100dvh] w-full bg-[#050505]" />;
   }
 
   return (
@@ -135,7 +145,7 @@ export default function Home() {
           </span>
         </div>
         <div className="flex-shrink-0">
-          <ConnectButton label="Connect" /> 
+          <ConnectButton /> 
         </div>
       </header>
 

@@ -67,45 +67,39 @@ button[data-testid="connect-wallet-button"] {
   transform: scale(1.05);
 }
 
-/* --- SUIET WALLET KIT OVERRIDE (Responsive) --- */
+/* --- MYSTEN DAPP KIT OVERRIDE --- */
 
-/* Genel Buton Stili */
-.wkit-button {
-  background-color: #D4AF37 !important;
-  color: #000 !important;
+/* Butonun kendisi */
+button[data-testid="connect-wallet-button"],
+.ui-component-button {
+  background-color: #D4AF37 !important; /* Altın Rengi */
+  color: #000000 !important; /* Siyah Yazı */
   font-weight: 800 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   border-radius: 12px !important;
+  border: none !important;
   transition: all 0.2s ease-in-out !important;
-  white-space: nowrap !important; /* Metin kaymasın */
+  height: 40px !important;
+  padding: 0 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
-/* Masaüstü (Büyük Ekran) */
-@media (min-width: 768px) {
-  .wkit-button {
-    height: 48px !important;
-    padding: 0 32px !important;
-    font-size: 16px !important;
-  }
-}
-
-/* Mobil (Küçük Ekran) - KRİTİK AYAR */
-@media (max-width: 767px) {
-  .wkit-button {
-    height: 36px !important; /* Daha kısa */
-    padding: 0 12px !important; /* Daha dar */
-    font-size: 13px !important; /* Daha küçük yazı */
-    width: auto !important; /* Ekranı kaplamasın */
-  }
-  
-  /* Mobilde butonun içindeki ikonları biraz küçültelim */
-  .wkit-button svg {
-    width: 16px !important;
-    height: 16px !important;
-  }
-}
-
-.wkit-button:hover {
-  background-color: #F4CF57 !important;
+/* Hover Efekti */
+button[data-testid="connect-wallet-button"]:hover,
+.ui-component-button:hover {
+  background-color: #F4CF57 !important; /* Daha açık altın */
   transform: scale(1.02);
   box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+  cursor: pointer !important;
+}
+
+/* Mobildeki görünüm */
+@media (max-width: 768px) {
+  button[data-testid="connect-wallet-button"] {
+    height: 36px !important;
+    font-size: 14px !important;
+    padding: 0 16px !important;
+  }
 }
