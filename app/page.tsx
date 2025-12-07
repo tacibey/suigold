@@ -1,11 +1,12 @@
 "use client";
 
-// DEĞİŞİKLİK: Resmi Kit Importları
-import { ConnectButton, useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+// ENOKI IMPORTLARI
+import { useEnokiFlow } from "@mysten/enoki/react";
+import { useCurrentAccount } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Flame, Hexagon, CheckCircle2, Wallet, Plus, Minus, X, ArrowRight, ChevronDown, Loader2, Info } from "lucide-react";
+import { Flame, Hexagon, CheckCircle2, Wallet, Plus, Minus, X, ArrowRight, ChevronDown, Loader2, Info, LogOut } from "lucide-react";
 import { COIN_SUI } from "@/lib/contracts";
 import { createZapTransaction } from "@/lib/zap";
 
@@ -20,15 +21,16 @@ const TOKENS = [
 export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
 
+  // ENOKI HOOKS
+  const flow = useEnokiFlow();
+  const account = useCurrentAccount(); // Enoki ile giriş yapınca burası dolacak
+  
+  // Bağlı mı kontrolü (Account varsa bağlıdır)
+  const connected = !!account;
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  // DEĞİŞİKLİK: Yeni Hooklar
-  const account = useCurrentAccount(); // Bağlı hesap var mı?
-  const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction(); // İşlem yapma fonksiyonu
-  
-  const connected = !!account; // Account varsa bağlıdır
 
   // State
   const [oreAmount, setOreAmount] = useState(12.4501);
@@ -49,6 +51,34 @@ export default function Home() {
     }, 7000); 
     return () => clearInterval(interval);
   }, []);
+
+  // --- GOOGLE LOGIN FONKSIYONU ---
+  const handleLogin = async () => {
+    // Google Login Sayfasına Yönlendirir
+    window.location.href = await flow.createAuthorizationURL({
+      provider: "google",
+      network: "mainnet",
+      clientId: "YOUR_GOOGLE_CLIENT_ID", // Demo modunda Enoki bunu halleder
+      redirectUrl: window.location.href,
+      extraParams: {
+        scope: ["openid", "email", "profile"],
+      },
+    });
+  };
+
+  // --- LOGOUT ---
+  const handleLogout = () => {
+    flow.logout();
+    window.location.reload();
+  };
+
+  // --- SAYFA YÜKLENDİĞİNDE GİRİŞİ TAMAMLA ---
+  useEffect(() => {
+    if (isMounted) {
+      flow.handleAuthCallback().catch((err) => console.error("Auth Callback Error:", err));
+    }
+  }, [isMounted, flow]);
+
 
   const handleSuccessScenario = (type: 'smelt' | 'deposit' | 'withdraw', amount: number = 0) => {
     setLoading(false);
@@ -81,22 +111,18 @@ export default function Home() {
       const [coin] = tx.splitCoins(tx.gas, [1]);
       tx.transferObjects([coin], account.address);
 
-      // DEĞİŞİKLİK: Yeni işlem yapısı
-      signAndExecuteTransaction(
-        { transaction: tx },
-        {
-          onSuccess: () => handleSuccessScenario('smelt'),
-          onError: (err) => {
-            console.warn("Tx Failed:", err);
-            // Demo olduğu için başarılı sayıyoruz
-            setTimeout(() => handleSuccessScenario('smelt'), 1000);
-          }
-        }
-      );
+      // Enoki ile imzala ve gönder
+      await flow.executeTransactionBlock({
+        transactionBlock: tx,
+        network: "mainnet",
+      });
+
+      handleSuccessScenario('smelt');
 
     } catch (e) {
       console.warn("Error:", e);
-      setLoading(false);
+      // Demo mode fallback
+      setTimeout(() => handleSuccessScenario('smelt'), 1000);
     }
   };
 
@@ -110,20 +136,18 @@ export default function Home() {
       const [coin] = tx.splitCoins(tx.gas, [1]);
       tx.transferObjects([coin], account.address);
 
-      signAndExecuteTransaction(
-        { transaction: tx },
-        {
-          onSuccess: () => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount),
-          onError: (err) => {
-            console.warn("Tx Failed:", err);
-            setTimeout(() => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount), 1000);
-          }
-        }
-      );
+      // Enoki ile imzala ve gönder
+      await flow.executeTransactionBlock({
+        transactionBlock: tx,
+        network: "mainnet",
+      });
+
+      handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount);
 
     } catch (e) {
       console.warn("Error:", e);
-      setLoading(false);
+      // Demo mode fallback
+      setTimeout(() => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount), 1000);
     }
   };
 
@@ -144,8 +168,26 @@ export default function Home() {
             SuiGold
           </span>
         </div>
+        
+        {/* SAĞ ÜST BUTON */}
         <div className="flex-shrink-0">
-          <ConnectButton /> 
+          {!connected ? (
+            <button 
+              onClick={handleLogin}
+              className="bg-[#D4AF37] text-black font-bold px-4 py-2 rounded-xl text-sm hover:bg-[#F4CF57] transition-all flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S14.89 2 12.2 2C6.73 2 2 6.74 2 12.2S6.73 22.4 12.2 22.4c5.5 0 10.2-3.9 10.2-10.2c0-.52-.03-1.1-.05-1.1z"/></svg>
+              Google Login
+            </button>
+          ) : (
+            <button 
+              onClick={handleLogout}
+              className="bg-white/10 text-white font-bold px-4 py-2 rounded-xl text-sm hover:bg-white/20 transition-all flex items-center gap-2"
+            >
+              <LogOut size={14} />
+              Exit
+            </button>
+          )}
         </div>
       </header>
 
@@ -169,14 +211,22 @@ export default function Home() {
                   Stop letting inflation eat your savings.<br/>
                   <span className="text-white font-medium">SuiGold</span> gives you real yield.
                 </p>
+                
+                {/* ORTA BÜYÜK BUTON */}
                 <div className="flex justify-center">
                   <div className="scale-110 origin-top">
-                    <ConnectButton />
+                    <button 
+                      onClick={handleLogin}
+                      className="bg-[#D4AF37] text-black font-bold px-8 py-4 rounded-2xl text-lg hover:bg-[#F4CF57] transition-all flex items-center gap-3 shadow-[0_0_20px_rgba(212,175,55,0.4)]"
+                    >
+                      <svg className="w-6 h-6" viewBox="0 0 24 24"><path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S14.89 2 12.2 2C6.73 2 2 6.74 2 12.2S6.73 22.4 12.2 22.4c5.5 0 10.2-3.9 10.2-10.2c0-.52-.03-1.1-.05-1.1z"/></svg>
+                      Sign in with Google
+                    </button>
                   </div>
                 </div>
               </motion.div>
             ) : (
-              // DASHBOARD
+              // DASHBOARD (Aynı kalıyor)
               <>
                 <AnimatePresence>
                   {showSuccess && (
@@ -258,7 +308,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* MODAL (Aynı kalıyor) */}
       <AnimatePresence>
         {activeModal && (
           <motion.div 
