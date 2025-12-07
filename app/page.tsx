@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Hexagon, CheckCircle2, Wallet, Plus, Minus, X, ArrowRight, ChevronDown, Loader2, Info } from "lucide-react";
 import { COIN_SUI } from "@/lib/contracts";
+import { createZapTransaction } from "@/lib/zap";
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
 
@@ -16,6 +17,15 @@ const TOKENS = [
 ];
 
 export default function Home() {
+  // --- HYDRATION FIX BAŞLANGICI ---
+  // Bu bölüm Dark Reader gibi eklentilerin yarattığı uyumsuzluk hatalarını engeller.
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  // --- HYDRATION FIX BİTİŞİ ---
+
   const wallet = useWallet();
   const { connected, account, signAndExecuteTransaction } = wallet;
   
@@ -62,13 +72,13 @@ export default function Home() {
   };
 
   const handleSmelt = async () => {
-    if (!connected) return;
+    if (!connected || !account) return;
     setLoading(true);
 
     try {
       const tx = new Transaction();
       const [coin] = tx.splitCoins(tx.gas, [1]);
-      tx.transferObjects([coin], account!.address);
+      tx.transferObjects([coin], account.address);
 
       await signAndExecuteTransaction({ transaction: tx });
       handleSuccessScenario('smelt');
@@ -80,42 +90,50 @@ export default function Home() {
   };
 
   const handleTransaction = async () => {
-    if (!inputAmount || !connected) return;
+    if (!inputAmount || !connected || !account) return;
     setLoading(true);
     const amount = Number(inputAmount);
 
     try {
-      const tx = new Transaction();
-      const [coin] = tx.splitCoins(tx.gas, [1]);
-      tx.transferObjects([coin], account!.address);
-
-      await signAndExecuteTransaction({ transaction: tx });
+      if (activeModal === 'deposit') {
+        console.log("Zap İşlemi Başlatılıyor...");
+        const tx = new Transaction();
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], account.address);
+        await signAndExecuteTransaction({ transaction: tx });
+      } 
+      else {
+        const tx = new Transaction();
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], account.address);
+        await signAndExecuteTransaction({ transaction: tx });
+      }
       handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount);
-
     } catch (e) {
-      console.warn("Tx Failed (Expected in Demo):", e);
+      console.warn("İşlem Başarısız:", e);
       setTimeout(() => handleSuccessScenario(activeModal === 'deposit' ? 'deposit' : 'withdraw', amount), 1000);
     }
   };
 
+  // --- HYDRATION CHECK ---
+  // Sayfa tamamen yüklenmeden render yapma (Hataları önler)
+  if (!isMounted) {
+    return <div className="h-[100dvh] w-full bg-[#050505]" />; // Boş siyah ekran
+  }
+
   return (
     <main className="h-[100dvh] w-full flex flex-col relative overflow-hidden font-sans bg-[#050505] text-white">
       
-      {/* --- GÜNCELLENMİŞ HEADER --- */}
+      {/* HEADER */}
       <header className="h-16 flex-none w-full z-50 border-b border-white/5 bg-[#050505]/95 backdrop-blur-md flex items-center justify-between px-4">
-        
-        {/* SOL: LOGO (Mobilde de görünecek şekilde ayarlandı) */}
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-br from-[#F4CF57] to-[#B48F17] rounded-lg flex items-center justify-center font-bold text-black shadow-[0_0_10px_rgba(212,175,55,0.3)] text-sm flex-shrink-0">
             Au
           </div>
-          {/* Mobilde text-base, Masaüstünde text-xl */}
           <span className="font-bold text-base md:text-xl tracking-tight font-mono text-white">
             SuiGold
           </span>
         </div>
-
-        {/* SAĞ: CONNECT BUTTON (CSS ile küçültüldü) */}
         <div className="flex-shrink-0">
           <ConnectButton label="Connect" /> 
         </div>
